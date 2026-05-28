@@ -28,7 +28,7 @@ except ImportError:
         from ..core.dice_login import login_to_dice
     except ImportError:
         from core.browser_detector import get_browser_path
-        from core.dice_login import login_to_dice
+        from core.dice_login import login_to_dice, accept_cookies
 
 
 # Load environment variables
@@ -91,13 +91,11 @@ def get_web_driver(headless=False, retry_with_alternative=True):
         options.add_argument("--disable-web-security")
         options.add_argument("--disable-features=EnableEphemeralFlashPermission")
         options.add_argument("--no-sandbox")
-        options.add_argument("--remote-debugging-port=9222")
         options.add_argument("--disable-infobars")
         options.add_argument("--disable-notifications")
         
         # Clear browser cache and cookies
         options.add_argument("--disable-application-cache")
-        options.add_argument("--incognito")
 
         driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
         driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
@@ -155,8 +153,6 @@ def get_web_driver(headless=False, retry_with_alternative=True):
                 options.add_argument("--disable-gpu")
                 options.add_argument("--window-size=1920,1080")
                 options.add_argument("--disable-blink-features=AutomationControlled")
-                options.add_argument("--incognito")  # Use incognito to avoid cache issues
-                
                 driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
                 driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
                 
@@ -194,6 +190,8 @@ def apply_to_job_url(driver, job_url):
     
     # Navigate to job URL in the same tab
     driver.get(job_url)
+    time.sleep(2)
+    accept_cookies(driver)
     
     # Dice pages can be slow/heavy; give a bit more time for the apply control to become interactable
     wait = WebDriverWait(driver, 20)
@@ -503,6 +501,8 @@ def fetch_jobs_with_requests(driver, search_query, include_keywords=None, exclud
             try:
                 print(f"Loading search results for query: '{search_query}'...")
                 driver.get(base_url)
+                time.sleep(2)
+                accept_cookies(driver)
                 short_wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
                 break
             except Exception as e:

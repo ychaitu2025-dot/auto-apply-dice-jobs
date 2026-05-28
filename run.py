@@ -22,8 +22,8 @@ def main():
     
     # Import and run the main app
     try:
-        from app_tkinter import main
-        main()
+        from app_tkinter import main as app_main
+        app_main()
     except ImportError:
         print("ERROR: Could not import app_tkinter module. Make sure you're running from the correct directory.")
         sys.exit(1)

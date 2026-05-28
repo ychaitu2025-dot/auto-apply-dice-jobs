@@ -6,11 +6,12 @@ import tkinter as tk
 from tkinter import ttk, messagebox, scrolledtext
 import threading
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 import time
 import logging
 import pyautogui
 import subprocess
+import json
 
 # Try both absolute and relative imports for compatibility
 try:
@@ -72,6 +73,12 @@ class DiceAutoBotApp:
         self.driver = None
         self.job_thread = None
         self.running = False
+
+        # Scheduler state
+        self.scheduler_enabled = False
+        self.scheduler_thread = None
+        self.next_run_time = None
+        self.scheduler_history = []
         
         # Load configuration if exists
         self.load_config()
@@ -84,16 +91,19 @@ class DiceAutoBotApp:
         self.main_tab = ttk.Frame(self.notebook)
         self.settings_tab = ttk.Frame(self.notebook)
         self.logs_tab = ttk.Frame(self.notebook)
+        self.scheduler_tab = ttk.Frame(self.notebook)
         
         # Add tabs to notebook
         self.notebook.add(self.main_tab, text="Run Bot")
         self.notebook.add(self.settings_tab, text="Settings")
         self.notebook.add(self.logs_tab, text="Logs")
+        self.notebook.add(self.scheduler_tab, text="⏰ Scheduler")
         
         # Set up UI for each tab
         self.setup_main_tab()
         self.setup_settings_tab()
         self.setup_logs_tab()
+        self.setup_scheduler_tab()
         
         # Log that app is started
         self.logger.info("Application started")
@@ -920,6 +930,343 @@ After the process completes, you can find:
         """Update status message and log it"""
         self.logger.info(message)
         self.root.after(0, lambda msg=message: self.status_label.config(text=msg))
+
+    # ───────────────────────────── SCHEDULER ─────────────────────────────
+
+    def setup_scheduler_tab(self):
+        """Build the Scheduler tab UI."""
+        # ── Status bar at the top ──
+        status_frame = ttk.LabelFrame(self.scheduler_tab, text="Scheduler Status")
+        status_frame.pack(fill="x", padx=10, pady=(10, 5))
+
+        row1 = ttk.Frame(status_frame)
+        row1.pack(fill="x", padx=10, pady=5)
+        ttk.Label(row1, text="Status:", width=14, anchor="w").pack(side="left")
+        self.sched_status_label = ttk.Label(row1, text="Disabled", foreground="gray")
+        self.sched_status_label.pack(side="left")
+
+        row2 = ttk.Frame(status_frame)
+        row2.pack(fill="x", padx=10, pady=2)
+        ttk.Label(row2, text="Next Run:", width=14, anchor="w").pack(side="left")
+        self.sched_next_label = ttk.Label(row2, text="—")
+        self.sched_next_label.pack(side="left")
+
+        row3 = ttk.Frame(status_frame)
+        row3.pack(fill="x", padx=10, pady=2)
+        ttk.Label(row3, text="Countdown:", width=14, anchor="w").pack(side="left")
+        self.sched_countdown_label = ttk.Label(row3, text="—")
+        self.sched_countdown_label.pack(side="left")
+
+        # ── Mode selection ──
+        mode_frame = ttk.LabelFrame(self.scheduler_tab, text="Schedule Mode")
+        mode_frame.pack(fill="x", padx=10, pady=5)
+
+        self.sched_mode_var = tk.StringVar(value="window")
+        ttk.Radiobutton(mode_frame, text="Run every 10-15 min inside a time window  (e.g. 09:00 – 18:00)",
+                        variable=self.sched_mode_var, value="window",
+                        command=self._toggle_sched_mode).pack(anchor="w", padx=10, pady=3)
+        ttk.Radiobutton(mode_frame, text="Run at specific time(s) every day",
+                        variable=self.sched_mode_var, value="daily",
+                        command=self._toggle_sched_mode).pack(anchor="w", padx=10, pady=3)
+        ttk.Radiobutton(mode_frame, text="Run every N hours (interval)",
+                        variable=self.sched_mode_var, value="interval",
+                        command=self._toggle_sched_mode).pack(anchor="w", padx=10, pady=3)
+
+        # ── Time-window panel (NEW - shown by default) ──
+        self.window_frame = ttk.Frame(mode_frame)
+        self.window_frame.pack(fill="x", padx=20, pady=5)
+
+        wrow1 = ttk.Frame(self.window_frame)
+        wrow1.pack(anchor="w", pady=3)
+        ttk.Label(wrow1, text="Start time:").pack(side="left")
+        self.window_start_var = tk.StringVar(value="09:00")
+        ttk.Entry(wrow1, textvariable=self.window_start_var, width=8).pack(side="left", padx=5)
+        ttk.Label(wrow1, text="End time:").pack(side="left", padx=(10, 0))
+        self.window_end_var = tk.StringVar(value="18:00")
+        ttk.Entry(wrow1, textvariable=self.window_end_var, width=8).pack(side="left", padx=5)
+
+        wrow2 = ttk.Frame(self.window_frame)
+        wrow2.pack(anchor="w", pady=3)
+        ttk.Label(wrow2, text="Run every").pack(side="left")
+        self.window_min_var = tk.IntVar(value=10)
+        ttk.Spinbox(wrow2, from_=1, to=60, width=4,
+                    textvariable=self.window_min_var).pack(side="left", padx=4)
+        ttk.Label(wrow2, text="to").pack(side="left")
+        self.window_max_var = tk.IntVar(value=15)
+        ttk.Spinbox(wrow2, from_=1, to=60, width=4,
+                    textvariable=self.window_max_var).pack(side="left", padx=4)
+        ttk.Label(wrow2, text="minutes (random)").pack(side="left")
+
+        ttk.Label(self.window_frame,
+                  text="Bot will run every 10-15 min while inside the window, then pause until next day.",
+                  foreground="gray").pack(anchor="w")
+
+        # ── Daily times panel ──
+        self.daily_frame = ttk.Frame(mode_frame)
+        # not packed by default (window is selected)
+
+        ttk.Label(self.daily_frame, text="Run times (HH:MM, comma-separated):").pack(anchor="w")
+        self.sched_times_entry = ttk.Entry(self.daily_frame, width=40)
+        self.sched_times_entry.insert(0, "09:00, 13:00, 18:00")
+        self.sched_times_entry.pack(anchor="w", pady=3)
+        ttk.Label(self.daily_frame,
+                  text="Example: 09:00, 13:00, 18:00  (24-hour format)",
+                  foreground="gray").pack(anchor="w")
+
+        # ── Interval panel ──
+        self.interval_frame = ttk.Frame(mode_frame)
+        # not packed by default (window is selected)
+
+        int_row = ttk.Frame(self.interval_frame)
+        int_row.pack(anchor="w", pady=3)
+        ttk.Label(int_row, text="Repeat every").pack(side="left")
+        self.sched_interval_var = tk.IntVar(value=4)
+        ttk.Spinbox(int_row, from_=1, to=24, width=5,
+                    textvariable=self.sched_interval_var).pack(side="left", padx=5)
+        ttk.Label(int_row, text="hour(s)").pack(side="left")
+
+        ttk.Label(self.interval_frame,
+                  text="First run starts immediately when you enable the scheduler.",
+                  foreground="gray").pack(anchor="w")
+
+        # ── Days of week ──
+        days_frame = ttk.LabelFrame(self.scheduler_tab, text="Active Days")
+        days_frame.pack(fill="x", padx=10, pady=5)
+
+        days_row = ttk.Frame(days_frame)
+        days_row.pack(padx=10, pady=5)
+        day_names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        self.day_vars = []
+        for i, d in enumerate(day_names):
+            v = tk.BooleanVar(value=(i < 5))  # Mon-Fri on by default
+            self.day_vars.append(v)
+            ttk.Checkbutton(days_row, text=d, variable=v).pack(side="left", padx=6)
+
+        # ── Control buttons ──
+        btn_frame = ttk.Frame(self.scheduler_tab)
+        btn_frame.pack(fill="x", padx=10, pady=8)
+
+        self.sched_enable_btn = ttk.Button(
+            btn_frame, text="▶  Enable Scheduler",
+            command=self.enable_scheduler)
+        self.sched_enable_btn.pack(side="left", padx=5)
+
+        self.sched_disable_btn = ttk.Button(
+            btn_frame, text="⏹  Disable Scheduler",
+            command=self.disable_scheduler, state="disabled")
+        self.sched_disable_btn.pack(side="left", padx=5)
+
+        ttk.Button(btn_frame, text="▶  Run Now",
+                   command=self._scheduler_trigger_now).pack(side="left", padx=5)
+
+        # ── Run history ──
+        hist_frame = ttk.LabelFrame(self.scheduler_tab, text="Run History")
+        hist_frame.pack(fill="both", expand=True, padx=10, pady=5)
+
+        self.sched_history_text = scrolledtext.ScrolledText(
+            hist_frame, height=8, wrap=tk.WORD, state="disabled")
+        self.sched_history_text.pack(fill="both", expand=True, padx=5, pady=5)
+
+    def _toggle_sched_mode(self):
+        """Show/hide the correct options panel."""
+        mode = self.sched_mode_var.get()
+        self.window_frame.pack_forget()
+        self.daily_frame.pack_forget()
+        self.interval_frame.pack_forget()
+        if mode == "window":
+            self.window_frame.pack(fill="x", padx=20, pady=5)
+        elif mode == "daily":
+            self.daily_frame.pack(fill="x", padx=20, pady=5)
+        else:
+            self.interval_frame.pack(fill="x", padx=20, pady=5)
+
+    # ── enable / disable ──
+
+    def enable_scheduler(self):
+        """Validate inputs and start the background scheduler thread."""
+        if self.scheduler_enabled:
+            return
+
+        # Validate inputs based on mode
+        mode = self.sched_mode_var.get()
+        if mode == "window":
+            for label, var in [("Start time", self.window_start_var), ("End time", self.window_end_var)]:
+                try:
+                    datetime.strptime(var.get().strip(), "%H:%M")
+                except ValueError:
+                    messagebox.showwarning("Scheduler",
+                        f"Invalid {label}: '{var.get()}'\nUse HH:MM (24-hour).")
+                    return
+            if self.window_min_var.get() > self.window_max_var.get():
+                messagebox.showwarning("Scheduler", "Min interval must be ≤ Max interval.")
+                return
+        elif mode == "daily":
+            raw = self.sched_times_entry.get()
+            times = [t.strip() for t in raw.split(",") if t.strip()]
+            if not times:
+                messagebox.showwarning("Scheduler", "Please enter at least one run time.")
+                return
+            for t in times:
+                try:
+                    datetime.strptime(t, "%H:%M")
+                except ValueError:
+                    messagebox.showwarning("Scheduler",
+                        f"Invalid time format: '{t}'\nUse HH:MM (24-hour).")
+                    return
+
+        self.scheduler_enabled = True
+        self.sched_enable_btn.config(state="disabled")
+        self.sched_disable_btn.config(state="normal")
+        self.sched_status_label.config(text="Active", foreground="green")
+        self._log_sched_history("Scheduler enabled.")
+        self.logger.info("Scheduler enabled")
+
+        self.scheduler_thread = threading.Thread(
+            target=self._scheduler_loop, daemon=True)
+        self.scheduler_thread.start()
+
+        # Start countdown ticker
+        self._update_countdown()
+
+    def disable_scheduler(self):
+        """Stop the scheduler."""
+        self.scheduler_enabled = False
+        self.next_run_time = None
+        self.sched_enable_btn.config(state="normal")
+        self.sched_disable_btn.config(state="disabled")
+        self.sched_status_label.config(text="Disabled", foreground="gray")
+        self.sched_next_label.config(text="—")
+        self.sched_countdown_label.config(text="—")
+        self._log_sched_history("Scheduler disabled.")
+        self.logger.info("Scheduler disabled")
+
+    # ── background loop ──
+
+    def _scheduler_loop(self):
+        """Runs in a daemon thread; fires the bot at the right times."""
+        import random
+        mode = self.sched_mode_var.get()
+
+        if mode == "window":
+            # Parse window bounds
+            sh, sm = map(int, self.window_start_var.get().strip().split(":"))
+            eh, em = map(int, self.window_end_var.get().strip().split(":"))
+            min_interval = self.window_min_var.get()
+            max_interval = self.window_max_var.get()
+
+            while self.scheduler_enabled:
+                now = datetime.now()
+                start_today = now.replace(hour=sh, minute=sm, second=0, microsecond=0)
+                end_today   = now.replace(hour=eh, minute=em, second=0, microsecond=0)
+
+                if self._is_active_day(now) and start_today <= now <= end_today:
+                    # Inside window — fire
+                    self.root.after(0, self._scheduler_trigger_now)
+                    # Wait a random interval before next attempt
+                    wait_mins = random.randint(min_interval, max_interval)
+                    self.next_run_time = datetime.now() + timedelta(minutes=wait_mins)
+                    self.root.after(0, lambda t=self.next_run_time:
+                        self.sched_next_label.config(text=t.strftime("%H:%M:%S")))
+                    # Sleep in 30-second chunks so we can be cancelled quickly
+                    for _ in range(wait_mins * 2):  # wait_mins * 60s / 30s
+                        if not self.scheduler_enabled:
+                            break
+                        time.sleep(30)
+                else:
+                    # Outside window — figure out when the next window opens
+                    if now < start_today:
+                        next_window = start_today
+                    else:
+                        # Window already ended today; open tomorrow
+                        next_window = start_today + timedelta(days=1)
+                    # Skip to the next active day
+                    for _ in range(7):
+                        if self._is_active_day(next_window):
+                            break
+                        next_window += timedelta(days=1)
+
+                    self.next_run_time = next_window
+                    self.root.after(0, lambda t=next_window:
+                        self.sched_next_label.config(text=t.strftime("%Y-%m-%d %H:%M")))
+                    time.sleep(30)
+
+        elif mode == "interval":
+            hours = self.sched_interval_var.get()
+            self.next_run_time = datetime.now()
+            while self.scheduler_enabled:
+                now = datetime.now()
+                if now >= self.next_run_time:
+                    if self._is_active_day(now):
+                        self.root.after(0, self._scheduler_trigger_now)
+                    self.next_run_time = datetime.now() + timedelta(hours=hours)
+                    self.root.after(0, lambda t=self.next_run_time:
+                        self.sched_next_label.config(text=t.strftime("%Y-%m-%d %H:%M")))
+                time.sleep(30)
+        else:
+            # daily mode
+            while self.scheduler_enabled:
+                self.next_run_time = self._next_daily_run()
+                if self.next_run_time:
+                    self.root.after(0, lambda t=self.next_run_time:
+                        self.sched_next_label.config(text=t.strftime("%Y-%m-%d %H:%M")))
+                time.sleep(30)
+                now = datetime.now()
+                if self.next_run_time and now >= self.next_run_time:
+                    if self._is_active_day(now):
+                        self.root.after(0, self._scheduler_trigger_now)
+                    self.next_run_time = self.next_run_time + timedelta(minutes=1)
+
+    def _next_daily_run(self):
+        """Return the next datetime matching a configured time slot."""
+        raw = self.sched_times_entry.get()
+        times = [t.strip() for t in raw.split(",") if t.strip()]
+        now = datetime.now()
+        candidates = []
+        for t in times:
+            try:
+                h, m = map(int, t.split(":"))
+                candidate = now.replace(hour=h, minute=m, second=0, microsecond=0)
+                if candidate <= now:
+                    candidate += timedelta(days=1)
+                candidates.append(candidate)
+            except Exception:
+                pass
+        return min(candidates) if candidates else None
+
+    def _is_active_day(self, dt):
+        """Return True if dt falls on a checked weekday (0=Mon … 6=Sun)."""
+        return self.day_vars[dt.weekday()].get()
+
+    def _scheduler_trigger_now(self):
+        """Trigger a bot run immediately (called from scheduler or 'Run Now' button)."""
+        if self.running:
+            self._log_sched_history("Skipped (bot already running).")
+            return
+        self._log_sched_history(f"Triggered run at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+        self.start_applying()
+
+    def _update_countdown(self):
+        """Tick the countdown label every second."""
+        if not self.scheduler_enabled:
+            return
+        if self.next_run_time:
+            remaining = self.next_run_time - datetime.now()
+            total_sec = int(remaining.total_seconds())
+            if total_sec < 0:
+                total_sec = 0
+            h, r = divmod(total_sec, 3600)
+            m, s = divmod(r, 60)
+            self.sched_countdown_label.config(text=f"{h:02d}h {m:02d}m {s:02d}s")
+        self.root.after(1000, self._update_countdown)
+
+    def _log_sched_history(self, msg):
+        """Append a timestamped line to the history text box."""
+        entry = f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}\n"
+        self.scheduler_history.append(entry)
+        self.sched_history_text.config(state="normal")
+        self.sched_history_text.insert("end", entry)
+        self.sched_history_text.see("end")
+        self.sched_history_text.config(state="disabled")
         
 
 class LogTextHandler(logging.Handler):

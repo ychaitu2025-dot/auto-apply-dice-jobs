@@ -10,6 +10,56 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
 
+def accept_cookies(driver):
+    """
+    Attempts to find and click cookie consent buttons.
+    """
+    try:
+        # Common selectors for cookie banners
+        selectors = [
+            "//button[contains(text(), 'Accept')]",
+            "//button[contains(text(), 'Agree')]",
+            "//button[contains(text(), 'Got it')]",
+            "//button[@id='onetrust-accept-btn-handler']",
+            "//div[contains(@id, 'cookie')]//button",
+            "//div[contains(@class, 'cookie')]//button",
+            "//button[contains(@class, 'accept')]",
+            "//div[@id='cmpwrapper']//button",
+            "//a[contains(text(), 'Accept')]"
+        ]
+        
+        # Aggressively look for and hide common overlays that block clicks
+        driver.execute_script("""
+            const overlays = [
+                document.getElementById('cmpwrapper'),
+                document.querySelector('.cmp-container'),
+                document.querySelector('[id*="cookie"]'),
+                document.querySelector('[class*="cookie"]')
+            ];
+            overlays.forEach(el => {
+                if (el) el.style.display = 'none';
+            });
+        """)
+
+        for selector in selectors:
+            elements = driver.find_elements(By.XPATH, selector)
+            for element in elements:
+                try:
+                    if element.is_displayed():
+                        try:
+                            element.click()
+                            print(f"Accepted cookies via selector: {selector}")
+                            return True
+                        except:
+                            driver.execute_script("arguments[0].click();", element)
+                            print(f"Accepted cookies via JS selector: {selector}")
+                            return True
+                except:
+                    continue
+    except Exception:
+        pass
+    return False
+
 def update_dice_credentials(username, password, update_env=True):
     """
     Updates the Dice credentials in the .env file.
@@ -119,6 +169,8 @@ def validate_dice_credentials(username, password, headless=True):
     try:
         # Try login with provided credentials
         driver.get("https://www.dice.com/dashboard/login")
+        time.sleep(2)
+        accept_cookies(driver)
         wait = WebDriverWait(driver, 20)       # Increased from 10 to 20
         long_wait = WebDriverWait(driver, 120) # Much longer wait for final verification
         
@@ -207,6 +259,8 @@ def login_to_dice(driver, credentials_from_params=None):
     # Navigate to login page
     print("Navigating to Dice login page...")
     driver.get("https://www.dice.com/dashboard/login")
+    time.sleep(2)
+    accept_cookies(driver)
     
     # Set up wait objects with increased timeouts
     short_wait = WebDriverWait(driver, 20)  # Increased timeout
@@ -215,26 +269,56 @@ def login_to_dice(driver, credentials_from_params=None):
     try:
         # Enter email/username
         print("Entering username...")
-        email_field = short_wait.until(EC.presence_of_element_located((By.NAME, "email")))
+        
+        # Check for bot detection / "Pardon our interruption"
+        if "pardon" in driver.page_source.lower() or "interruption" in driver.page_source.lower():
+            print("Detected 'Pardon our interruption' screen. Refreshing page...")
+            driver.refresh()
+            time.sleep(5)
+
+        try:
+            email_field = short_wait.until(EC.presence_of_element_located((By.NAME, "email")))
+        except Exception:
+            print("Email field not found. Refreshing page and trying again...")
+            driver.refresh()
+            time.sleep(5)
+            email_field = short_wait.until(EC.presence_of_element_located((By.NAME, "email")))
+
         email_field.clear()
         email_field.send_keys(username)
 
         # Click continue button
         print("Clicking continue button...")
-        continue_button = short_wait.until(EC.element_to_be_clickable((By.XPATH, "//button[@data-testid='sign-in-button']")))
-        continue_button.click()
+        try:
+            continue_button = short_wait.until(EC.element_to_be_clickable((By.XPATH, "//button[@data-testid='sign-in-button']")))
+            continue_button.click()
+        except Exception:
+            # Fallback to JS click if intercepted
+            continue_button = driver.find_element(By.XPATH, "//button[@data-testid='sign-in-button']")
+            driver.execute_script("arguments[0].click();", continue_button)
         time.sleep(3)  # Increased pause to ensure page transitions
 
         # Enter password
         print("Entering password...")
-        password_field = short_wait.until(EC.presence_of_element_located((By.NAME, "password")))
+        try:
+            password_field = short_wait.until(EC.presence_of_element_located((By.NAME, "password")))
+        except Exception:
+            print("Password field not found. Waiting a bit more and checking again...")
+            time.sleep(5)
+            password_field = short_wait.until(EC.presence_of_element_located((By.NAME, "password")))
+            
         password_field.clear()
         password_field.send_keys(password)
 
         # Click login button
         print("Clicking login button...")
-        login_button = short_wait.until(EC.element_to_be_clickable((By.XPATH, "//button[@data-testid='submit-password']")))
-        login_button.click()
+        try:
+            login_button = short_wait.until(EC.element_to_be_clickable((By.XPATH, "//button[@data-testid='submit-password']")))
+            login_button.click()
+        except Exception:
+            # Try JS click as fallback
+            login_button = driver.find_element(By.XPATH, "//button[@data-testid='submit-password']")
+            driver.execute_script("arguments[0].click();", login_button)
         
         # Add a longer pause after clicking login
         print("Waiting for login to complete (this may take some time)...")
