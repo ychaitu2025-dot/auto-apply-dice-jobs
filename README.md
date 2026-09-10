@@ -131,9 +131,6 @@ If your browser isn't being detected correctly, you can manually specify the bro
 ## Contributing
 Feel free to fork this repository and submit pull requests for improvements, additional features, or bug fixes.
 
-## Acknowledgments
-This project started as a fork of [PranaySinguluri/auto-apply-dice-jobs](https://github.com/PranaySinguluri/auto-apply-dice-jobs). The upstream `main` branch has since been removed, so this repository is now the actively maintained version.
-
 ## Maintainer
 **Chaithanya Yadlapalli** — Lead GenAI Engineer
 Contact: cyadlapalli.contact@gmail.com
