@@ -46,9 +46,6 @@ chmod +x run.py
 The app has 4 tabs: **Run Bot**, **Settings**, **Scheduler**, and **Logs**.
 
 ### Page 1: Run Bot
-
-![Run Bot page](https://github.com/user-attachments/assets/00fa63d5-bd6d-4e36-8545-6d07fb5c7121)
-
 - **Job Titles to Apply:** comma-separated job titles (e.g. `AI Engineer, ML Engineer, Data Scientist`)
 - **Exclude Keywords:** comma-separated (e.g. `Java, Director, Principal, Architect`)
 - **Include Keywords:** comma-separated (e.g. `Python, RAG, LLM, Azure, AWS, NLP, PyTorch, TensorFlow, Agentic, LangGraph, LangChain`)
@@ -56,9 +53,6 @@ The app has 4 tabs: **Run Bot**, **Settings**, **Scheduler**, and **Logs**.
 - Click **Start Applying** once Settings (Page 2) is done
 
 ### Page 2: Settings
-
-![Settings page](https://github.com/user-attachments/assets/d4e84ca8-d2d5-4809-befe-1701b49d2933)
-
 1. Enter your Dice login email and password
 2. Click **Test Login** and confirm the "Login successful" popup
 3. Click **Save Settings**
@@ -66,17 +60,11 @@ The app has 4 tabs: **Run Bot**, **Settings**, **Scheduler**, and **Logs**.
 You're ready — go back to Page 1 and click **Start Applying**.
 
 ### Page 3: Scheduler
-
-![Scheduler page](https://github.com/user-attachments/assets/062fc53a-2c50-49b8-b893-6b3d06a88b29)
-
 - Set a start time, end time, and gap between runs (e.g. every 3 hours)
 - Choose which days it should run
 - Click **Activate Scheduler** to let it run automatically without you starting it manually
 
 ### Page 4: Logs
-
-![Logs page](https://github.com/user-attachments/assets/8f70059a-3ec9-4cfe-99cd-98ff31f3e36d)
-
 - Shows what the bot is doing in real time
 - Click **Load Latest Log File** to view the most recent run's log
 
