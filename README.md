@@ -2,6 +2,8 @@
 
 Dice Auto Apply Bot is a Python-based application that automates your job application process on Dice.com. It leverages Selenium for web automation, BeautifulSoup for HTML parsing, and Tkinter for a user-friendly GUI.
 
+Maintained by **Chaithanya Yadlapalli** (Lead GenAI Engineer) as part of an ongoing job-search automation toolkit.
+
 ## Features
 - **Automated Job Search & Application:** Automatically search for and apply to job listings using specified queries and filters.
 - **Graphical User Interface:** Tkinter-based UI for easy control and monitoring of the application process.
@@ -117,19 +119,21 @@ Once started, the GUI allows you to:
 
 ## Troubleshooting
 
-- **Slow Login Issues:**  
-  The application has been updated to handle slower login processes. If you still experience issues, try increasing timeouts in the settings.
+- **Slow Login Issues:**
+The application has been updated to handle slower login processes. If you still experience issues, try increasing timeouts in the settings.
 
-- **WebDriver Issues:**  
-  The application uses `webdriver_manager` to handle drivers automatically. If you encounter issues, try running `run.py` which fixes common permission issues.
+- **WebDriver Issues:**
+The application uses `webdriver_manager` to handle drivers automatically. If you encounter issues, try running `run.py` which fixes common permission issues.
 
-- **Browser Detection Problems:**  
-  If your browser isn't being detected correctly, you can manually specify the browser path in the .env file.
+- **Browser Detection Problems:**
+If your browser isn't being detected correctly, you can manually specify the browser path in the .env file.
 
 ## Contributing
 Feel free to fork this repository and submit pull requests for improvements, additional features, or bug fixes.
 
-## Support
-If you find this project useful, please consider supporting its development:
+## Acknowledgments
+This project started as a fork of [PranaySinguluri/auto-apply-dice-jobs](https://github.com/PranaySinguluri/auto-apply-dice-jobs). The upstream `main` branch has since been removed, so this repository is now the actively maintained version.
 
-[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20a%20Coffee-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/yuvarajareddy)
+## Maintainer
+**Chaithanya Yadlapalli** — Lead GenAI Engineer
+Contact: cyadlapalli.contact@gmail.com
