@@ -28,8 +28,7 @@ The video shows step-by-step instructions for installation, configuration, and r
 Copy and run these commands:
 
 ```bash
-git clone https://github.com/yuva-raja-reddy/auto-apply-dice-jobs.git
-cd auto-apply-dice-jobs
+git clone https://github.com/ychaitu2025-dot/auto-apply-dice-jobs
 ```
 
 ### Create and Activate a Virtual Environment
