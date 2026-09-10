@@ -2,7 +2,7 @@
 
 Dice Auto Apply Bot is a Python-based application that automates your job application process on Dice.com. It leverages Selenium for web automation, BeautifulSoup for HTML parsing, and Tkinter for a user-friendly GUI.
 
-Maintained by **Chaithanya Yadlapalli** (Lead GenAI Engineer) as part of an ongoing job-search automation toolkit.
+Maintained by **Chaithanya Yadlapalli** as part of an ongoing job-search automation toolkit.
 
 ## Features
 - **Automated Job Search & Application:** Automatically search for and apply to job listings using specified queries and filters.
@@ -132,5 +132,5 @@ If your browser isn't being detected correctly, you can manually specify the bro
 Feel free to fork this repository and submit pull requests for improvements, additional features, or bug fixes.
 
 ## Maintainer
-**Chaithanya Yadlapalli** — Lead GenAI Engineer
+**Chaithanya Yadlapalli**
 Contact: cyadlapalli.contact@gmail.com
