@@ -100,27 +100,6 @@ Shows what the bot is doing in real time: jobs discovered, jobs evaluated, appli
 Click Load Latest Log File to load the most recent log file.
 
 ---
-
-## Screenshots
-
-### Run Bot
-
-![Run Bot page](https://github.com/user-attachments/assets/00fa63d5-bd6d-4e36-8545-6d07fb5c7121)
-
-### Settings
-
-![Settings page](https://github.com/user-attachments/assets/d4e84ca8-d2d5-4809-befe-1701b49d2933)
-
-### Scheduler
-
-![Scheduler page](https://github.com/user-attachments/assets/062fc53a-2c50-49b8-b893-6b3d06a88b29)
-
-### Logs
-
-![Logs page](https://github.com/user-attachments/assets/8f70059a-3ec9-4cfe-99cd-98ff31f3e36d)
-
----
-
 ## Installation
 
 ### Prerequisites
